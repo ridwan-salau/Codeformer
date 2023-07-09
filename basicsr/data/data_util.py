@@ -236,6 +236,7 @@ def paths_from_folder(folder):
     """
 
     paths = list(scandir(folder))
+    print("===>>>", len(paths))
     paths = [osp.join(folder, path) for path in paths]
     return paths
 

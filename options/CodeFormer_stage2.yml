@@ -61,7 +61,7 @@ network_g:
   codebook_size: 1024
   connect_list: ['32', '64', '128', '256']
   fix_modules: ['quantize','generator']
-  vqgan_path: './experiments/pretrained_models/vqgan/vqgan_code1024.pth' # pretrained VQGAN 
+  vqgan_path: './experiments/20230703_122441_VQGAN-512-ds32-nearest-stage1/models/net_g_latest.pth' # pretrained VQGAN 
 
 network_vqgan: # this config is needed if no pre-calculated latent
   type: VQAutoEncoder
@@ -105,7 +105,7 @@ train:
   #   restart_weights: [1]
   #   eta_min: !!float 2e-5 # no lr reduce in official vqgan code
 
-  total_iter: 500000
+  total_iter: 8000
 
   warmup_iter: -1  # no warm up
   ema_decay: 0.995

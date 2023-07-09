@@ -83,10 +83,10 @@ network_d:
 
 # path
 path:
-  pretrain_network_g: './experiments/pretrained_models/CodeFormer_stage2/net_g_latest.pth' # pretrained G model in StageII 
+  pretrain_network_g: './experiments/20230703_212430_CodeFormer_stage2/models/net_g_latest.pth' # pretrained G model in StageII 
   param_key_g: params_ema
   strict_load_g: true
-  pretrain_network_d: './experiments/pretrained_models/CodeFormer_stage2/net_d_latest.pth' # pretrained D model in StageII
+  pretrain_network_d: './experiments/20230703_122441_VQGAN-512-ds32-nearest-stage1/models/net_d_latest.pth' # pretrained D model in StageII
   resume_state: ~
 
 # base_lr(4.5e-6)*bach_size(4)
@@ -115,7 +115,7 @@ train:
     eta_min: !!float 2e-5
 
 
-  total_iter: 150000
+  total_iter: 6000
 
   warmup_iter: -1  # no warm up
   ema_decay: 0.997
