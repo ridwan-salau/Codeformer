@@ -9,7 +9,7 @@ datasets:
   train:
     name: FFHQ
     type: FFHQBlindJointDataset
-    dataroot_gt: datasets/ffhq/ffhq_512
+    dataroot_gt: dataset/ffhq_512
     filename_tmpl: '{}'
     io_backend:
       type: disk
@@ -89,6 +89,13 @@ path:
   pretrain_network_d: './experiments/20230703_122441_VQGAN-512-ds32-nearest-stage1/models/net_d_latest.pth' # pretrained D model in StageII
   resume_state: ~
 
+# Parameters to be optimized
+optimizable:
+  optim_g:
+    lr: [!!float 5e-6, !!float 5e-4]
+  optim_d:
+    lr: [!!float 5e-6, !!float 5e-4]
+  ema_decay: [0.5, 1.0]
 # base_lr(4.5e-6)*bach_size(4)
 train:
   use_hq_feat_loss: true

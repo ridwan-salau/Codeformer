@@ -11,7 +11,7 @@ from basicsr.utils.registry import ARCH_REGISTRY
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('-i', '--test_path', type=str, default='datasets/ffhq/ffhq_512')
+    parser.add_argument('-i', '--test_path', type=str, default='dataset/ffhq_512')
     parser.add_argument('-o', '--save_root', type=str, default='./experiments/pretrained_models/vqgan')
     parser.add_argument('--codebook_size', type=int, default=1024)
     parser.add_argument('--ckpt_path', type=str, default='./experiments/pretrained_models/vqgan/net_g.pth')

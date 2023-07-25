@@ -2,7 +2,8 @@ import argparse
 import datetime
 import logging
 import math
-import copy
+import json
+from pathlib import Path
 import random
 import time
 import torch
@@ -14,20 +15,25 @@ from basicsr.data.prefetch_dataloader import CPUPrefetcher, CUDAPrefetcher
 from basicsr.models import build_model
 from basicsr.utils import (MessageLogger, check_resume, get_env_info, get_root_logger, init_tb_logger,
                            init_wandb_logger, make_exp_dirs, mkdir_and_rename, set_random_seed)
-from basicsr.utils.dist_util import get_dist_info, init_dist
+from basicsr.utils.dist_util import get_dist_info, init_dist, get_dist_info
 from basicsr.utils.options import dict2str, parse
 
 import warnings
 # ignore UserWarning: Detected call of `lr_scheduler.step()` before `optimizer.step()`.
 warnings.filterwarnings("ignore", category=UserWarning)
 
-def parse_options(root_path, is_train=True):
+def parse_options(root_path, is_train=True, yml_only=False):
     parser = argparse.ArgumentParser()
     parser.add_argument('-opt', type=str, required=True, help='Path to option YAML file.')
     parser.add_argument('--launcher', choices=['none', 'pytorch', 'slurm'], default='none', help='job launcher')
     parser.add_argument('--local-rank', type=int, default=0)
+    parser.add_argument('--exp-name', type=str, default=datetime.datetime.now().strftime("%Y_%m_%d_%H_%M_%S_%f"))
     args = parser.parse_args()
     opt = parse(args.opt, root_path, is_train=is_train)
+    opt['exp_name'] = args.exp_name
+    opt['rank'], opt['world_size'] = get_dist_info()
+    if yml_only:
+        return opt
 
     # distributed settings
     if args.launcher == 'none':
@@ -40,7 +46,6 @@ def parse_options(root_path, is_train=True):
         else:
             init_dist(args.launcher)
 
-    opt['rank'], opt['world_size'] = get_dist_info()
 
     # random seed
     seed = opt.get('manual_seed')
@@ -110,6 +115,7 @@ def create_train_val_dataloader(opt, logger):
 def train_pipeline(root_path):
     # parse options, set distributed setting, set ramdom seed
     opt = parse_options(root_path, is_train=True)
+    print(opt["rank"], opt["world_size"])
 
     torch.backends.cudnn.benchmark = True
     # torch.backends.cudnn.deterministic = True
@@ -209,6 +215,7 @@ def train_pipeline(root_path):
         # end of iter
 
     # end of epoch
+    msg_logger({}, int(time.time() - start_time))
 
     consumed_time = str(datetime.timedelta(seconds=int(time.time() - start_time)))
     logger.info(f'End of training. Time consumed: {consumed_time}')
@@ -221,5 +228,18 @@ def train_pipeline(root_path):
 
 
 if __name__ == '__main__':
+    from cachestore import Cache
+    
+    cache = Cache(name="codeformer_cache")
+    
     root_path = osp.abspath(osp.join(__file__, osp.pardir, osp.pardir))
+    
+    optimizable = parse_options(root_path, yml_only=True)["optimizable"]
+    
+    # @cache()
+    # def train(key=optimizable):
+    #     save_paths = train_pipeline(root_path)
+        
+    # train()
     train_pipeline(root_path)
+    

@@ -9,7 +9,7 @@ datasets:
   train:
     name: FFHQ
     type: FFHQBlindDataset
-    dataroot_gt: datasets/ffhq/ffhq_512
+    dataroot_gt: dataset/ffhq_512
     filename_tmpl: '{}'
     io_backend:
       type: disk
@@ -64,6 +64,15 @@ path:
   resume_state: ~
 
 # base_lr(4.5e-6)*bach_size(4)
+
+# Parameters to be optimized
+optimizable:
+  optim_g:
+    lr: [!!float 5e-6, !!float 5e-4]
+  optim_d:
+    lr: [!!float 5e-6, !!float 5e-4]
+  ema_decay: [0.5, 1.0]
+
 train:
   optim_g:
     type: Adam
@@ -82,7 +91,7 @@ train:
     restart_weights: [1]
     eta_min: !!float 6e-5 # no lr reduce in official vqgan code
 
-  total_iter: 24000
+  total_iter: 104
 
   warmup_iter: -1  # no warm up
   ema_decay: 0.995 # GFPGAN: 0.5**(32 / (10 * 1000) == 0.998; Unleashing: 0.995

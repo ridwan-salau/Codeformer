@@ -1,5 +1,7 @@
 import datetime
+import json
 import logging
+from pathlib import Path
 import time
 
 from .dist_util import get_dist_info, master_only
@@ -28,9 +30,11 @@ class MessageLogger():
         self.tb_logger = tb_logger
         self.start_time = time.time()
         self.logger = get_root_logger()
+        self.opt = opt
+        self.total_loss = 0
 
     @master_only
-    def __call__(self, log_vars):
+    def __call__(self, log_vars, run_duration=None):
         """Format logging message.
         Args:
             log_vars (dict): It contains the following keys:
@@ -40,6 +44,16 @@ class MessageLogger():
                 time (float): Iter time.
                 data_time (float): Data time for each iter.
         """
+        if run_duration:
+            print(__file__, 48, "writing cost and obj")
+            exp_metric_path:Path = Path("cost-aware-bo/metrics") / self.opt["exp_name"]
+            exp_metric_path.mkdir(parents=True, exist_ok=True)
+            with open(exp_metric_path/"cost.json", "w") as f:
+                json.dump({"COST": run_duration}, f)
+            with open(exp_metric_path/"obj.json", "w") as f:
+                json.dump({"OBJ": self.total_loss/self.max_iters}, f)
+            
+            return
         # epoch, iter, learning rates
         epoch = log_vars.pop('epoch')
         current_iter = log_vars.pop('iter')
@@ -71,6 +85,10 @@ class MessageLogger():
                 #     self.tb_logger.add_scalar(f'losses/{k}', v, current_iter)
                 # else:
                 self.tb_logger.add_scalar(k, v, current_iter)
+                
+            tracked_losses = {"l_g_pix":1, "l_g_percep":1, "l_g_gan":1, "l_feat_encoder":1, "cross_entropy_loss":0.5, "l_codebook":1}
+            self.total_loss += tracked_losses.get(k, 0) * v
+
         self.logger.info(message)
 
 
