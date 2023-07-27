@@ -51,7 +51,7 @@ class MessageLogger():
             with open(exp_metric_path/"cost.json", "w") as f:
                 json.dump({"COST": run_duration}, f)
             with open(exp_metric_path/"obj.json", "w") as f:
-                json.dump({"OBJ": self.total_loss/self.max_iters}, f)
+                json.dump({"OBJ": self.total_loss}, f)
             
             return
         # epoch, iter, learning rates
@@ -77,6 +77,7 @@ class MessageLogger():
             message += f'time (data): {iter_time:.3f} ({data_time:.3f})] '
 
         # other items, especially losses
+        total_loss=0
         for k, v in log_vars.items():
             message += f'{k}: {v:.4e} '
             # tensorboard logger
@@ -87,7 +88,9 @@ class MessageLogger():
                 self.tb_logger.add_scalar(k, v, current_iter)
                 
             tracked_losses = {"l_g_pix":1, "l_g_percep":1, "l_g_gan":1, "l_feat_encoder":1, "cross_entropy_loss":0.5, "l_codebook":1}
-            self.total_loss += tracked_losses.get(k, 0) * v
+            total_loss += tracked_losses.get(k, 0) * v
+        
+        self.total_loss = total_loss
 
         self.logger.info(message)
 

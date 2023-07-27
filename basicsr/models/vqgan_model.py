@@ -278,8 +278,10 @@ class VQGANModel(SRModel):
 
     def save(self, epoch, current_iter):
         if self.ema_decay > 0:
-            self.save_network([self.net_g, self.net_g_ema], 'net_g', current_iter, param_key=['params', 'params_ema'])
+            net_g_path = self.save_network([self.net_g, self.net_g_ema], 'net_g', current_iter, param_key=['params', 'params_ema'])
         else:
-            self.save_network(self.net_g, 'net_g', current_iter)
-        self.save_network(self.net_d, 'net_d', current_iter)
+            net_g_path = self.save_network(self.net_g, 'net_g', current_iter)
+        net_d_path = self.save_network(self.net_d, 'net_d', current_iter)
         self.save_training_state(epoch, current_iter)
+        
+        return net_g_path, net_d_path

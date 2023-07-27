@@ -198,6 +198,7 @@ class BaseModel():
             save_dict[param_key_] = state_dict
 
         torch.save(save_dict, save_path)
+        return save_path
 
     def _print_different_keys_loading(self, crt_net, load_net, strict=True):
         """Print keys with differnet name or different size when loading models.

@@ -31,21 +31,19 @@ def parse_options(root_path, is_train=True, yml_only=False):
     args = parser.parse_args()
     opt = parse(args.opt, root_path, is_train=is_train)
     opt['exp_name'] = args.exp_name
-    opt['rank'], opt['world_size'] = get_dist_info()
-    if yml_only:
-        return opt
 
     # distributed settings
     if args.launcher == 'none':
         opt['dist'] = False
         print('Disable distributed.', flush=True)
-    else:
+    elif not yml_only:
         opt['dist'] = True
         if args.launcher == 'slurm' and 'dist_params' in opt:
             init_dist(args.launcher, **opt['dist_params'])
         else:
             init_dist(args.launcher)
 
+    opt['rank'], opt['world_size'] = get_dist_info()
 
     # random seed
     seed = opt.get('manual_seed')
@@ -112,10 +110,7 @@ def create_train_val_dataloader(opt, logger):
     return train_loader, train_sampler, val_loader, total_epochs, total_iters
 
 
-def train_pipeline(root_path):
-    # parse options, set distributed setting, set ramdom seed
-    opt = parse_options(root_path, is_train=True)
-    print(opt["rank"], opt["world_size"])
+def train_pipeline(opt):
 
     torch.backends.cudnn.benchmark = True
     # torch.backends.cudnn.deterministic = True
@@ -215,31 +210,41 @@ def train_pipeline(root_path):
         # end of iter
 
     # end of epoch
-    msg_logger({}, int(time.time() - start_time))
+
+    # Log run_duration and minimum loss.
+    msg_logger({}, run_duration=int(time.time() - start_time))
 
     consumed_time = str(datetime.timedelta(seconds=int(time.time() - start_time)))
     logger.info(f'End of training. Time consumed: {consumed_time}')
     logger.info('Save the latest model.')
-    model.save(epoch=-1, current_iter=-1)  # -1 stands for the latest
+    chkpt_paths = model.save(epoch=-1, current_iter=-1)  # -1 stands for the latest
     if opt.get('val') is not None and opt['datasets'].get('val'):
         model.validation(val_loader, current_iter, tb_logger, opt['val']['save_img'])
     if tb_logger:
         tb_logger.close()
+        
+    return chkpt_paths
 
 
 if __name__ == '__main__':
     from cachestore import Cache
+    from torch.distributed.elastic.multiprocessing.errors import record
     
     cache = Cache(name="codeformer_cache")
     
     root_path = osp.abspath(osp.join(__file__, osp.pardir, osp.pardir))
+    @cache(ignore={"opt"})
+    @record
+    def train(opt, cache_key):
+        chkpt_paths = train_pipeline(opt)
+        return chkpt_paths
     
-    optimizable = parse_options(root_path, yml_only=True)["optimizable"]
+    # parse options, set distributed setting, set ramdom seed
+    opt = parse_options(root_path, is_train=True)
     
-    # @cache()
-    # def train(key=optimizable):
-    #     save_paths = train_pipeline(root_path)
-        
-    # train()
-    train_pipeline(root_path)
+    cache_key = [opt["optimizable"]]
+    print(train(opt, cache_key))
+    # train_pipeline(root_path)
+    
+
     
