@@ -121,7 +121,7 @@ class CodeFormerJointModel(SRModel):
                 optim_params_g.append(v)
             else:
                 logger = get_root_logger()
-                logger.warning(f'Params {k} will not be optimized.')
+                # logger.warning(f'Params {k} will not be optimized.')
         optim_type = train_opt['optim_g'].pop('type')
         self.optimizer_g = self.get_optimizer(optim_type, optim_params_g, **train_opt['optim_g'])
         self.optimizers.append(self.optimizer_g)
@@ -343,8 +343,10 @@ class CodeFormerJointModel(SRModel):
 
     def save(self, epoch, current_iter):
         if self.ema_decay > 0:
-            self.save_network([self.net_g, self.net_g_ema], 'net_g', current_iter, param_key=['params', 'params_ema'])
+            net_g_path = self.save_network([self.net_g, self.net_g_ema], 'net_g', current_iter, param_key=['params', 'params_ema'])
         else:
-            self.save_network(self.net_g, 'net_g', current_iter)
-        self.save_network(self.net_d, 'net_d', current_iter)
+            net_g_path = self.save_network(self.net_g, 'net_g', current_iter)
+        net_d_path = self.save_network(self.net_d, 'net_d', current_iter)
         self.save_training_state(epoch, current_iter)
+        
+        return net_g_path, net_d_path

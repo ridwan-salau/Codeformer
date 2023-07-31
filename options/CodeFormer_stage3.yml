@@ -95,7 +95,10 @@ optimizable:
     lr: [!!float 5e-6, !!float 5e-4]
   optim_d:
     lr: [!!float 5e-6, !!float 5e-4]
-  ema_decay: [0.5, 1.0]
+  # ema_decay: [0.5, 1.0]
+  net_d_start_iter: [1, 5999]
+  ema_decay: [0.9, 1.0]
+  
 # base_lr(4.5e-6)*bach_size(4)
 train:
   use_hq_feat_loss: true
@@ -147,7 +150,7 @@ train:
 
   net_g_start_iter: 0
   net_d_iters: 1
-  net_d_start_iter: 5001
+  net_d_start_iter: 3001
   manual_seed: 0
 
 # validation settings

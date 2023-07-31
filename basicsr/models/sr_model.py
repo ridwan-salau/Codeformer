@@ -77,7 +77,7 @@ class SRModel(BaseModel):
                 optim_params.append(v)
             else:
                 logger = get_root_logger()
-                logger.warning(f'Params {k} will not be optimized.')
+                # logger.warning(f'Params {k} will not be optimized.')
 
         optim_type = train_opt['optim_g'].pop('type')
         self.optimizer_g = self.get_optimizer(optim_type, optim_params, **train_opt['optim_g'])

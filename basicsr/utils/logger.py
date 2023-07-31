@@ -3,6 +3,7 @@ import json
 import logging
 from pathlib import Path
 import time
+import math
 
 from .dist_util import get_dist_info, master_only
 
@@ -46,11 +47,11 @@ class MessageLogger():
         """
         if run_duration:
             print(__file__, 48, "writing cost and obj")
-            exp_metric_path:Path = Path("cost-aware-bo/metrics") / self.opt["exp_name"]
-            exp_metric_path.mkdir(parents=True, exist_ok=True)
-            with open(exp_metric_path/"cost.json", "w") as f:
+            exp_metrics_path:Path = self.opt["metrics_path"]
+            exp_metrics_path.mkdir(parents=True, exist_ok=True)
+            with open(exp_metrics_path/f"{self.opt['stage']}_cost.json", "w") as f:
                 json.dump({"COST": run_duration}, f)
-            with open(exp_metric_path/"obj.json", "w") as f:
+            with open(exp_metrics_path/f"{self.opt['stage']}_obj.json", "w") as f:
                 json.dump({"OBJ": self.total_loss}, f)
             
             return
@@ -88,6 +89,7 @@ class MessageLogger():
                 self.tb_logger.add_scalar(k, v, current_iter)
                 
             tracked_losses = {"l_g_pix":1, "l_g_percep":1, "l_g_gan":1, "l_feat_encoder":1, "cross_entropy_loss":0.5, "l_codebook":1}
+            if math.isnan(v): continue
             total_loss += tracked_losses.get(k, 0) * v
         
         self.total_loss = total_loss

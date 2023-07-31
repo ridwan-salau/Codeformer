@@ -24,14 +24,28 @@ warnings.filterwarnings("ignore", category=UserWarning)
 
 def parse_options(root_path, is_train=True, yml_only=False):
     parser = argparse.ArgumentParser()
-    parser.add_argument('-opt', type=str, required=True, help='Path to option YAML file.')
+    parser.add_argument('--opt', type=Path, required=True, help='Path to option YAML directory.')
     parser.add_argument('--launcher', choices=['none', 'pytorch', 'slurm'], default='none', help='job launcher')
     parser.add_argument('--local-rank', type=int, default=0)
-    parser.add_argument('--exp-name', type=str, default=datetime.datetime.now().strftime("%Y_%m_%d_%H_%M_%S_%f"))
+    parser.add_argument('--metrics-path', type=Path, required=True)
+    parser.add_argument('--stage', type=str, default='stage1')
     args = parser.parse_args()
-    opt = parse(args.opt, root_path, is_train=is_train)
-    opt['exp_name'] = args.exp_name
-
+    opt = parse(args.opt/f"{args.stage}.yml", root_path, is_train=is_train)
+    opt['metrics_path'] = args.metrics_path
+    opt['stage'] = args.stage
+    opt["opt_path"] = args.opt
+    
+    # Substitue paths to models with output from previous stage
+    prev_stage_out:Path = args.metrics_path/"prev_stage_out.json"
+    if not args.stage=="stage1":
+        assert prev_stage_out.exists(), f"File {prev_stage_out} not found!"
+        with prev_stage_out.open() as f:
+            params_update = json.load(f)
+        for key1, val1 in params_update.items():
+            if not isinstance(val1, dict): continue
+            for key2, val2 in val1.items():
+                opt[key1][key2] = val2
+                
     # distributed settings
     if args.launcher == 'none':
         opt['dist'] = False
@@ -58,8 +72,8 @@ def parse_options(root_path, is_train=True, yml_only=False):
 def init_loggers(opt):
     log_file = osp.join(opt['path']['log'], f"train_{opt['name']}.log")
     logger = get_root_logger(logger_name='basicsr', log_level=logging.INFO, log_file=log_file)
-    logger.info(get_env_info())
-    logger.info(dict2str(opt))
+    # logger.info(get_env_info())
+    # logger.info(dict2str(opt))
 
     # initialize wandb logger before tensorboard logger to allow proper sync:
     if (opt['logger'].get('wandb') is not None) and (opt['logger']['wandb'].get('project') is not None):
@@ -212,7 +226,7 @@ def train_pipeline(opt):
     # end of epoch
 
     # Log run_duration and minimum loss.
-    msg_logger({}, run_duration=int(time.time() - start_time))
+    msg_logger({}, run_duration=round(time.time() - start_time, 2))
 
     consumed_time = str(datetime.timedelta(seconds=int(time.time() - start_time)))
     logger.info(f'End of training. Time consumed: {consumed_time}')
@@ -223,7 +237,7 @@ def train_pipeline(opt):
     if tb_logger:
         tb_logger.close()
         
-    return chkpt_paths
+    return chkpt_paths, msg_logger.total_loss
 
 
 if __name__ == '__main__':
@@ -236,15 +250,60 @@ if __name__ == '__main__':
     @cache(ignore={"opt"})
     @record
     def train(opt, cache_key):
-        chkpt_paths = train_pipeline(opt)
-        return chkpt_paths
+        chkpt_paths, loss = train_pipeline(opt)        
+        return chkpt_paths, loss
     
+    # Stage1
+    # ======
     # parse options, set distributed setting, set ramdom seed
     opt = parse_options(root_path, is_train=True)
     
-    cache_key = [opt["optimizable"]]
-    print(train(opt, cache_key))
-    # train_pipeline(root_path)
+    # Create the cache key depending on the stage. We memoize all previous stages if they use the same train hyperparameters.
+    cache_key = [opt["train"]]
+    if opt["stage"]=="stage3":
+        opt1 = parse(opt['opt_path']/"stage1.yml", root_path)
+        opt2 = parse(opt['opt_path']/"stage2.yml", root_path)
+        cache_key.extend([opt1["train"], opt2["train"]])
+    elif opt["stage"] == "stage2":
+        opt1 = parse(opt['opt_path']/"stage1.yml", root_path)
+        cache_key.extend([opt1["train"]])
+        
+    start_time = time.time()
     
-
+    model_chkpts, loss = train(opt, cache_key)
     
+    if opt["rank"] == 0:
+        
+        # Save the loss and cost
+        msg_logger = MessageLogger(opt)
+        msg_logger.total_loss = loss
+        msg_logger({}, run_duration=round(time.time() - start_time, 2))
+        
+        if opt["stage"]=="stage2":
+            with (opt["metrics_path"]/"prev_stage_out.json").open() as f:
+                network_d = json.load(f)["network_d"]
+                model_chkpts = *model_chkpts, network_d
+                
+        # Save the model_chkpts paths for the previous stage in a file for use in the next stage.
+        params_update = {"stage1": {"network_g":{"vqgan_path": model_chkpts[0]}, "network_d":model_chkpts[1]}, 
+            "stage2": {"path":{"pretrain_network_g": model_chkpts[0], "pretrain_network_d": model_chkpts[1]}},
+            "stage3": {}}
+        
+        with (opt["metrics_path"]/"prev_stage_out.json").open("w") as f:
+            json.dump(params_update[opt["stage"]], f)
+    
+    # Stage2
+    # ======
+    # parse options, set distributed setting, set ramdom seed
+    # params_update = {"network_g":{"vqgan_path": stage1_out[0]}}
+    # opt = parse_options(root_path, is_train=True, stage_file="stage2.yml", params_update=params_update)
+    # cache_key.append(opt["optimizable"])
+    # stage2_out = train(opt, cache_key)
+    
+    # Stage3
+    # ======
+    # parse options, set distributed setting, set ramdom seed
+    # params_update = {"path":{"pretrain_network_g": stage2_out[0], "pretrain_network_d": stage2_out[1]}}
+    # opt = parse_options(root_path, is_train=True, stage_file="stage3.yml", params_update=params_update)
+    # cache_key.append(opt["optimizable"])
+    # stage3_out = train(opt, cache_key)
